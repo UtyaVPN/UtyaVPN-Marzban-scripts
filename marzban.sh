@@ -665,6 +665,7 @@ get_xray_core() {
         install_package wget
     fi
 
+
     mkdir -p $DATA_DIR/xray-core
     cd $DATA_DIR/xray-core
 
@@ -1066,6 +1067,11 @@ install_command() {
     fi
     if ! command -v yq >/dev/null 2>&1; then
         install_yq
+    fi
+
+    if ! command -v socat >/dev/null 2>&1; then
+        detect_os
+        install_package socat
     fi
     detect_compose
     install_marzban_script
