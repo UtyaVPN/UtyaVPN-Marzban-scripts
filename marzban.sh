@@ -1182,7 +1182,7 @@ install_command() {
         echo "XRAY_SUBSCRIPTION_URL_PREFIX = \"https://$DOMAIN/sub\""
         echo ""
         echo "UVICORN_HOST = \"0.0.0.0\""
-        echo "UVICORN_PORT = \"8000\""
+        echo "UVICORN_PORT = \"443\""
     } >> "$ENV_FILE"
     colorized_echo green "Configuration updated in $ENV_FILE."
 
@@ -1207,7 +1207,7 @@ install_command() {
 
     colorized_echo blue "================================================================="
     colorized_echo green "Marzban setup complete! Your panel should be accessible at:"
-    colorized_echo yellow "https://$DOMAIN:8000/dashboard/"
+    colorized_echo yellow "https://$DOMAIN:443/dashboard/"
     colorized_echo blue "================================================================="
 }
 
