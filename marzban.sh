@@ -1179,7 +1179,7 @@ install_command() {
         echo "UVICORN_SSL_CERTFILE = \"$CERT_FILE\""
         echo "UVICORN_SSL_KEYFILE = \"$KEY_FILE\""
         echo ""
-        echo "XRAY_SUBSCRIPTION_URL_PREFIX = \"https://$DOMAIN/sub\""
+        echo "XRAY_SUBSCRIPTION_URL_PREFIX = \"https://$DOMAIN/\""
         echo ""
         echo "UVICORN_HOST = \"0.0.0.0\""
         echo "UVICORN_PORT = \"443\""
