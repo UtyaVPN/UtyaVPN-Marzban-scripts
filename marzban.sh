@@ -1271,6 +1271,7 @@ uninstall_ssl_dependencies() {
             else
                 colorized_echo red "Unsupported operating system for HAProxy auto-uninstall. Please remove it manually."
             fi
+            rm -rf /etc/haproxy /var/lib/haproxy
             colorized_echo green "HAProxy uninstalled."
         fi
     fi
@@ -1611,7 +1612,6 @@ ssl_command() {
         colorized_echo red "Email cannot be empty. Aborting setup."
         exit 1
     fi
-    marzban down
     ACME_SH_CMD="/root/.acme.sh/acme.sh"
     if [ ! -f "$ACME_SH_CMD" ]; then
         colorized_echo yellow "acme.sh not found. Installing..."
@@ -1733,7 +1733,7 @@ EOF
     colorized_echo blue "Updating Marzban configuration in .env file..."
     sed -i 's~^#* *UVICORN_HOST *=.*~#UVICORN_HOST = "0.0.0.0"~' "$ENV_FILE"
     sed -i 's~^#* *UVICORN_PORT *=.*~#UVICORN_PORT = 8000~' "$ENV_FILE"
-    sed -i 's~^#* *UVICORN_UDS *=.*~UVICORN_UDS = "/var/lib/marzban/marzban.socket"~' "$ENV_FILE"
+    sed -i 's~^#* *UVICORN_UDS *[:=].*~UVICORN_UDS = "/var/lib/marzban/marzban.socket"~' "$ENV_FILE"
     sed -i "s~^#* *XRAY_SUBSCRIPTION_URL_PREFIX *=.*~XRAY_SUBSCRIPTION_URL_PREFIX = \"https://$DOMAIN/\"~" "$ENV_FILE"
     colorized_echo green "Configuration updated in $ENV_FILE."
 
