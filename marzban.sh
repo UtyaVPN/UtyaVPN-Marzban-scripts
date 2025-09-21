@@ -1113,94 +1113,11 @@ install_command() {
 
     colorized_echo blue "Starting environment configuration..."
 
-    read -p "Enter your domain name (e.g., example.com): " DOMAIN
-    if [ -z "$DOMAIN" ]; then
-        colorized_echo red "Domain name cannot be empty. Aborting setup."
-        exit 1
-    fi
-
-    read -p "Enter your email for SSL certificate registration (e.g., your@example.com): " EMAIL
-    if [ -z "$EMAIL" ]; then
-        colorized_echo red "Email cannot be empty. Aborting setup."
-        exit 1
-    fi
-
-    ACME_SH_CMD="/root/.acme.sh/acme.sh"
-    if [ ! -f "$ACME_SH_CMD" ]; then
-        colorized_echo yellow "acme.sh not found. Installing..."
-        curl https://get.acme.sh | sh
-        colorized_echo green "acme.sh installed successfully."
-        colorized_echo blue "Registering acme.sh account..."
-        "$ACME_SH_CMD" --register-account -m "$EMAIL"
-    fi
-
-    colorized_echo blue "Stopping Marzban to free up port 80 for certificate issuance..."
-    down_marzban || true
-    colorized_echo green "Marzban is confirmed to be down."
-
-    CERT_DIR="/var/lib/marzban/certs/$DOMAIN"
-    CERT_FILE="$CERT_DIR/fullchain.pem"
-    KEY_FILE="$CERT_DIR/key.pem"
-
-    colorized_echo blue "Issuing SSL certificate for $DOMAIN..."
-    set +e
-    "$ACME_SH_CMD" --issue --force -d "$DOMAIN" --standalone --keylength ec-256
-    ISSUE_STATUS=$?
-    set -e
-
-    if [ $ISSUE_STATUS -eq 0 ]; then
-        colorized_echo green "Certificate issued successfully."
-    elif [ $ISSUE_STATUS -eq 2 ]; then
-        colorized_echo green "Certificate is already up to date. Skipping issuance."
-    else
-        colorized_echo red "Failed to issue or renew certificate (Exit Code: $ISSUE_STATUS). Please check logs."
-        up_marzban -n
-        exit 1
-    fi
-
-    colorized_echo blue "Installing certificate to $CERT_DIR..."
-    mkdir -p "$CERT_DIR"
-    if ! "$ACME_SH_CMD" --install-cert -d "$DOMAIN" \
-        --fullchain-file "$CERT_FILE" \
-        --key-file "$KEY_FILE" \
-        --ecc; then
-        colorized_echo red "Failed to install certificate."
-        up_marzban -n
-        exit 1
-    fi
-    colorized_echo green "Certificate installed."
-
-    colorized_echo blue "Updating Marzban configuration in .env file..."
-    sed -i '/^UVICORN_SSL_CERTFILE/d' "$ENV_FILE"
-    sed -i '/^UVICORN_SSL_KEYFILE/d' "$ENV_FILE"
-    sed -i '/^XRAY_SUBSCRIPTION_URL_PREFIX/d' "$ENV_FILE"
-    sed -i '/^UVICORN_HOST/d' "$ENV_FILE"
-    sed -i '/^UVICORN_PORT/d' "$ENV_FILE"
-
-    {
-        echo ""
-        echo "UVICORN_SSL_CERTFILE = \"$CERT_FILE\""
-        echo "UVICORN_SSL_KEYFILE = \"$KEY_FILE\""
-        echo ""
-        echo "XRAY_SUBSCRIPTION_URL_PREFIX = \"https://$DOMAIN/\""
-        echo ""
-        echo "UVICORN_HOST = \"0.0.0.0\""
-        echo "UVICORN_PORT = \"443\""
-    } >> "$ENV_FILE"
-    colorized_echo green "Configuration updated in $ENV_FILE."
-
-    colorized_echo blue "Restarting Marzban with new configuration..."
-    if ! restart_command -n; then
-        colorized_echo red "Failed to restart Marzban. Check logs with: marzban logs"
-        exit 1
-    fi
-    colorized_echo green "Marzban restarted successfully."
-
     read -p "Enter admin username: " ADMIN_USERNAME
     if [ -z "$ADMIN_USERNAME" ]; then
         colorized_echo red "Admin username cannot be empty. Skipping admin creation."
     else
-        colorized_echo blue "Attempting to create admin user '$ADMIN_USERNAME' நான்காம்..."
+        colorized_echo blue "Attempting to create admin user '$ADMIN_USERNAME'..."
         if marzban_cli admin create --username "$ADMIN_USERNAME" --sudo; then
             colorized_echo green "Admin user '$ADMIN_USERNAME' created successfully."
         else
@@ -1209,8 +1126,7 @@ install_command() {
     fi
 
     colorized_echo blue "================================================================="
-    colorized_echo green "Marzban setup complete! Your panel should be accessible at:"
-    colorized_echo yellow "https://$DOMAIN:443/dashboard/"
+    colorized_echo green "Marzban setup complete!"
     colorized_echo blue "================================================================="
 }
 
@@ -1630,6 +1546,176 @@ edit_env_command() {
     fi
 }
 
+ssl_command() {
+    check_running_as_root
+    # Check if marzban is installed
+    if ! is_marzban_installed; then
+        colorized_echo red "Marzban's not installed!"
+        exit 1
+    fi
+
+    detect_os
+    if ! command -v haproxy >/dev/null 2>&1; then
+        install_package haproxy
+    fi
+
+    read -p "Enter your domain name (e.g., example.com): " DOMAIN
+    if [ -z "$DOMAIN" ]; then
+        colorized_echo red "Domain name cannot be empty. Aborting setup."
+        exit 1
+    fi
+
+    read -p "Enter your email for SSL certificate registration (e.g., your@example.com): " EMAIL
+    if [ -z "$EMAIL" ]; then
+        colorized_echo red "Email cannot be empty. Aborting setup."
+        exit 1
+    fi
+
+    ACME_SH_CMD="/root/.acme.sh/acme.sh"
+    if [ ! -f "$ACME_SH_CMD" ]; then
+        colorized_echo yellow "acme.sh not found. Installing..."
+        curl https://get.acme.sh | sh
+        colorized_echo green "acme.sh installed successfully."
+        colorized_echo blue "Registering acme.sh account..."
+        "$ACME_SH_CMD" --register-account -m "$EMAIL"
+    fi
+
+    colorized_echo blue "Stopping Marzban to free up port 80 for certificate issuance..."
+    down_marzban || true
+    colorized_echo green "Marzban is confirmed to be down."
+
+    CERT_DIR="/var/lib/marzban/certs/$DOMAIN"
+    CERT_FILE="$CERT_DIR/fullchain.pem"
+    KEY_FILE="$CERT_DIR/key.pem"
+    mkdir -p "$CERT_DIR"
+
+    colorized_echo blue "Issuing SSL certificate for $DOMAIN..."
+    set +e
+    "$ACME_SH_CMD" --issue --force -d "$DOMAIN" --standalone --keylength ec-256 --debug
+    ISSUE_STATUS=$?
+    set -e
+
+    if [ $ISSUE_STATUS -eq 0 ]; then
+        colorized_echo green "Certificate issued successfully."
+    elif [ $ISSUE_STATUS -eq 2 ]; then
+        colorized_echo green "Certificate is already up to date. Skipping issuance."
+    else
+        colorized_echo red "Failed to issue or renew certificate (Exit Code: $ISSUE_STATUS). Please check logs."
+        up_marzban
+        exit 1
+    fi
+
+    colorized_echo blue "Installing certificate to $CERT_DIR..."
+    if ! "$ACME_SH_CMD" --install-cert -d "$DOMAIN" \
+        --fullchain-file "$CERT_FILE" \
+        --key-file "$KEY_FILE" \
+        --ecc; then
+        colorized_echo red "Failed to install certificate."
+        up_marzban
+        exit 1
+    fi
+    colorized_echo green "Certificate installed."
+
+    # Combine key and cert for HAProxy
+    cat "$KEY_FILE" >> "$CERT_FILE"
+    rm "$KEY_FILE"
+
+    HAPROXY_CFG_DIR="$APP_DIR"
+    HAPROXY_CFG_PATH="$HAPROXY_CFG_DIR/haproxy.cfg"
+    colorized_echo blue "Creating HAProxy configuration file..."
+    cat > "$HAPROXY_CFG_PATH" <<EOF
+global
+    log stdout format raw local0
+    log stdout format raw local1 notice
+    chroot /var/lib/haproxy
+    stats socket /var/lib/haproxy/admin.sock mode 660 level admin expose-fd listeners
+    stats timeout 30s
+    user haproxy
+    group haproxy
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    timeout connect 5000
+    timeout client  50000
+    timeout server  50000
+    errorfile 400 /usr/local/etc/haproxy/errors/400.http
+    errorfile 403 /usr/local/etc/haproxy/errors/403.http
+    errorfile 408 /usr/local/etc/haproxy/errors/408.http
+    errorfile 500 /usr/local/etc/haproxy/errors/500.http
+    errorfile 502 /usr/local/etc/haproxy/errors/502.http
+    errorfile 503 /usr/local/etc/haproxy/errors/503.http
+    errorfile 504 /usr/local/etc/haproxy/errors/504.http
+
+frontend http_in
+    bind *:80
+    mode http
+    http-request redirect scheme https unless { ssl_fc }
+
+frontend https_in
+    bind *:443 ssl crt $CERT_DIR
+    mode http
+    default_backend marzban_backend
+
+backend marzban_backend
+    mode http
+    server marzban_server unix@/var/lib/marzban/marzban.socket
+EOF
+    colorized_echo green "HAProxy configuration file created at $HAPROXY_CFG_PATH"
+
+    colorized_echo blue "Updating docker-compose.yml to include HAProxy service..."
+    yq -i '.services.haproxy = {
+        "image": "haproxy:lts",
+        "restart": "always",
+        "ports": [
+            "80:80",
+            "443:443"
+        ],
+        "user": "root",
+        "cap_add": [
+            "SYS_CHROOT"
+        ],
+        "volumes": [
+            "/opt/marzban/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro",
+            "/var/lib/marzban/certs:/var/lib/marzban/certs:ro",
+            "/var/lib/marzban:/var/lib/marzban:ro"
+        ],
+        "depends_on": {
+            "marzban": {
+                "condition": "service_started"
+            }
+        }
+    }' "$COMPOSE_FILE"
+    colorized_echo green "docker-compose.yml updated."
+
+    colorized_echo blue "Updating Marzban configuration in .env file..."
+    sed -i '/^UVICORN_HOST/d' "$ENV_FILE"
+    sed -i '/^UVICORN_PORT/d' "$ENV_FILE"
+    sed -i '/^UVICORN_UDS/d' "$ENV_FILE"
+    sed -i '/^XRAY_SUBSCRIPTION_URL_PREFIX/d' "$ENV_FILE"
+
+    {
+        echo ""
+        echo "UVICORN_UDS = \"/var/lib/marzban/marzban.socket\""
+        echo "XRAY_SUBSCRIPTION_URL_PREFIX = \"https://$DOMAIN/\""
+    } >> "$ENV_FILE"
+    colorized_echo green "Configuration updated in $ENV_FILE."
+
+    colorized_echo blue "Restarting Marzban with new configuration..."
+    if ! restart_command -n; then
+        colorized_echo red "Failed to restart Marzban. Check logs with: marzban logs"
+        exit 1
+    fi
+    colorized_echo green "Marzban restarted successfully."
+
+    colorized_echo blue "================================================================="
+    colorized_echo green "Marzban SSL with HAProxy setup complete! Your panel should be accessible at:"
+    colorized_echo yellow "https://$DOMAIN/dashboard/"
+    colorized_echo blue "================================================================="
+}
+
 usage() {
     local script_name="${0##*/}"
     colorized_echo blue "=============================="
@@ -1656,6 +1742,7 @@ usage() {
     colorized_echo yellow "  edit            $(tput sgr0)– Edit docker-compose.yml (via nano or vi editor)"
     colorized_echo yellow "  edit-env        $(tput sgr0)– Edit environment file (via nano or vi editor)"
     colorized_echo yellow "  help            $(tput sgr0)– Show this help message"
+    colorized_echo yellow "  ssl             $(tput sgr0)– Configure SSL for Marzban"
     
     
     echo
@@ -1697,6 +1784,8 @@ case "$1" in
         shift; edit_command "$@";;
     edit-env)
         shift; edit_env_command "$@";;
+    ssl)
+        shift; ssl_command "$@";;
     help|*)
         usage;;
 esac
