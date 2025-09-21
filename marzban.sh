@@ -710,8 +710,9 @@ update_core_command() {
 install_marzban() {
     local marzban_version=$1
     local database_type=$2
+    local marzban_branch=$3
     # Fetch releases
-    FILES_URL_PREFIX="https://raw.githubusercontent.com/UtyaVPN/UtyaVPN-Marzban/master"
+    FILES_URL_PREFIX="https://raw.githubusercontent.com/UtyaVPN/UtyaVPN-Marzban/${marzban_branch}"
     
     mkdir -p "$DATA_DIR"
     mkdir -p "$APP_DIR"
@@ -1012,6 +1013,7 @@ install_command() {
     database_type="sqlite"
     marzban_version="latest"
     marzban_version_set="false"
+    marzban_branch="master"
 
     # Parse options
     while [[ $# -gt 0 ]]; do
@@ -1028,6 +1030,7 @@ install_command() {
                 fi
                 marzban_version="dev"
                 marzban_version_set="true"
+                marzban_branch="dev"
                 shift
             ;;
             --version)
@@ -1096,7 +1099,7 @@ install_command() {
     # Check if the version is valid and exists
     if [[ "$marzban_version" == "latest" || "$marzban_version" == "dev" || "$marzban_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         if check_version_exists "$marzban_version"; then
-            install_marzban "$marzban_version" "$database_type"
+            install_marzban "$marzban_version" "$database_type" "$marzban_branch"
             echo "Installing $marzban_version version"
         else
             echo "Version $marzban_version does not exist. Please enter a valid version (e.g. v0.5.2)"
