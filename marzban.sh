@@ -1238,6 +1238,44 @@ is_marzban_up() {
     fi
 }
 
+uninstall_ssl_dependencies() {
+    colorized_echo blue "Checking for SSL dependencies..."
+
+    # Uninstall acme.sh
+    if [ -f "/root/.acme.sh/acme.sh" ]; then
+        read -p "acme.sh is installed. Do you want to uninstall it? (y/n) " -r
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            colorized_echo yellow "Uninstalling acme.sh..."
+            "/root/.acme.sh/acme.sh" --uninstall
+            colorized_echo green "acme.sh uninstalled."
+        fi
+    fi
+
+    # Uninstall HAProxy
+    if command -v haproxy >/dev/null 2>&1; then
+        read -p "HAProxy is installed. Do you want to uninstall it? (y/n) " -r
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            detect_os
+            if [ -z "$PKG_MANAGER" ]; then
+                detect_and_update_package_manager
+            fi
+            colorized_echo yellow "Uninstalling HAProxy..."
+            if [[ "$OS" == "Ubuntu"* ]] || [[ "$OS" == "Debian"* ]]; then
+                $PKG_MANAGER -y remove --purge haproxy
+            elif [[ "$OS" == "CentOS"* ]] || [[ "$OS" == "AlmaLinux"* ]]; then
+                $PKG_MANAGER remove -y haproxy
+            elif [ "$OS" == "Fedora"* ]; then
+                $PKG_MANAGER remove -y haproxy
+            elif [ "$OS" == "Arch" ]; then
+                $PKG_MANAGER -Rns --noconfirm haproxy
+            else
+                colorized_echo red "Unsupported operating system for HAProxy auto-uninstall. Please remove it manually."
+            fi
+            colorized_echo green "HAProxy uninstalled."
+        fi
+    fi
+}
+
 uninstall_command() {
     check_running_as_root
     # Check if marzban is installed
@@ -1256,6 +1294,9 @@ uninstall_command() {
     if is_marzban_up; then
         down_marzban
     fi
+    
+    uninstall_ssl_dependencies
+    
     uninstall_marzban_script
     uninstall_marzban
     uninstall_marzban_docker_images
