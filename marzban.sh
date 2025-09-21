@@ -1570,7 +1570,7 @@ ssl_command() {
         colorized_echo red "Email cannot be empty. Aborting setup."
         exit 1
     fi
-
+    marzban down
     ACME_SH_CMD="/root/.acme.sh/acme.sh"
     if [ ! -f "$ACME_SH_CMD" ]; then
         colorized_echo yellow "acme.sh not found. Installing..."
@@ -1627,7 +1627,6 @@ ssl_command() {
 global
     log stdout format raw local0
     log stdout format raw local1 notice
-    chroot /var/lib/haproxy
     stats socket /var/lib/haproxy/admin.sock mode 660 level admin expose-fd listeners
     stats timeout 30s
     user haproxy
@@ -1691,16 +1690,10 @@ EOF
     colorized_echo green "docker-compose.yml updated."
 
     colorized_echo blue "Updating Marzban configuration in .env file..."
-    sed -i '/^UVICORN_HOST/d' "$ENV_FILE"
-    sed -i '/^UVICORN_PORT/d' "$ENV_FILE"
-    sed -i '/^UVICORN_UDS/d' "$ENV_FILE"
-    sed -i '/^XRAY_SUBSCRIPTION_URL_PREFIX/d' "$ENV_FILE"
-
-    {
-        echo ""
-        echo "UVICORN_UDS = \"/var/lib/marzban/marzban.socket\""
-        echo "XRAY_SUBSCRIPTION_URL_PREFIX = \"https://$DOMAIN/\""
-    } >> "$ENV_FILE"
+    sed -i 's~^#* *UVICORN_HOST *=.*~#UVICORN_HOST = "0.0.0.0"~' "$ENV_FILE"
+    sed -i 's~^#* *UVICORN_PORT *=.*~#UVICORN_PORT = 8000~' "$ENV_FILE"
+    sed -i 's~^#* *UVICORN_UDS *=.*~UVICORN_UDS = "/var/lib/marzban/marzban.socket"~' "$ENV_FILE"
+    sed -i "s~^#* *XRAY_SUBSCRIPTION_URL_PREFIX *=.*~XRAY_SUBSCRIPTION_URL_PREFIX = \"https://$DOMAIN/\"~" "$ENV_FILE"
     colorized_echo green "Configuration updated in $ENV_FILE."
 
     colorized_echo blue "Restarting Marzban with new configuration..."
@@ -1715,6 +1708,7 @@ EOF
     colorized_echo yellow "https://$DOMAIN/dashboard/"
     colorized_echo blue "================================================================="
 }
+
 
 usage() {
     local script_name="${0##*/}"
